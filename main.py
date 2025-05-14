@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import pprint
 
@@ -16,6 +17,7 @@ import requests
 
 from config import TOKEN
 from data import db_session
+from data.users import User
 
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
@@ -35,7 +37,22 @@ aiogram_logger.setLevel(logging.WARNING)
 
 @dp.message(CommandStart())
 async def start(message: Message):
-    await message.answer("Сосал?")
+
+    user_id = message.from_user.id
+    username = message.from_user.username
+
+    # Запись пользователя в базу
+    user = User()
+    user.id = user_id
+    user.username = username
+    user.last_pairs = ""
+    db_sess = db_session.create_session()
+    db_sess.add(user)
+    db_sess.commit()
+
+    await message.answer(
+        "Сосал?"
+    )
 
 
 @dp.message()
@@ -50,19 +67,26 @@ async def change(message: Message):
 
     url = f"https://v6.exchangerate-api.com/v6/69dc936e8c547778eee18b82/latest/{currency}"
     response_json = requests.get(url).json()
-    pprint.pprint(response_json)
 
     # Проверка на правильность ввода
     if response_json['result'] == 'error':
-        await message.answer(f"Ошибка на стороне сервера. Тип ошибки: {response_json['error-type']}")
+        await message.answer(
+            f"Ошибка на стороне сервера. Тип ошибки: {response_json['error-type']}"
+        )
         return
 
     # Проверка наличия конечной валюты в списке
     if target not in response_json['conversion_rates']:
-        await message.answer("К сожалению, на данный момент в эту валюту конвертировать нельзя")
+        await message.answer(
+            "К сожалению, на данный момент в эту валюту конвертировать нельзя"
+        )
         return
 
-    await message.answer(f"1 {currency} = {response_json['conversion_rates'][target]} {target}")
+    # ToDo: записать в бд эту пару и убрать первую если длина больше 5
+
+    await message.answer(
+        f"1 {currency} = {response_json['conversion_rates'][target]} {target}"
+    )
 
 
 async def main():
